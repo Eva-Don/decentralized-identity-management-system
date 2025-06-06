@@ -249,3 +249,56 @@
     )
   )
 )
+
+(define-map IdentityReputation
+  principal
+  {
+    trust-score: uint,
+    total-verifications: uint,
+    successful-verifications: uint
+  }
+)
+
+;; Update Reputation After Verification
+(define-private (update-reputation
+  (identity principal)
+  (is-successful bool)
+)
+  (match (map-get? IdentityReputation identity)
+    current-reputation
+      (let 
+        (
+          (new-total (+ (get total-verifications current-reputation) u1))
+          (new-successful 
+            (if is-successful 
+              (+ (get successful-verifications current-reputation) u1)
+              (get successful-verifications current-reputation)
+            )
+          )
+          (new-trust-score 
+            (/ 
+              (* (get successful-verifications current-reputation) u100) 
+              new-total
+            )
+          )
+        )
+        (map-set IdentityReputation 
+          identity 
+          {
+            trust-score: new-trust-score,
+            total-verifications: new-total,
+            successful-verifications: new-successful
+          }
+        )
+      )
+    ;; Initialize reputation if not exists
+    (map-set IdentityReputation 
+      identity 
+      {
+        trust-score: (if is-successful u100 u0),
+        total-verifications: u1,
+        successful-verifications: (if is-successful u1 u0)
+      }
+    )
+  )
+)
