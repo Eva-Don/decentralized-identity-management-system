@@ -204,3 +204,48 @@
     )
   )
 )
+
+(define-public (revoke-service-access
+  (service-did principal)
+)
+  (let 
+    (
+      (access-entry 
+        (map-get? ServiceAccess 
+          {
+            identity: tx-sender,
+            service-did: service-did
+          }
+        )
+      )
+    )
+    (match access-entry
+      entry
+        (begin
+          ;; Remove service access
+          (map-delete ServiceAccess 
+            {
+              identity: tx-sender,
+              service-did: service-did
+            }
+          )
+          
+          ;; Update verification request status
+          (map-set VerificationRequests
+            {
+              requester: service-did,
+              identity: tx-sender
+            }
+            {
+              requested-attributes: (get allowed-attributes entry),
+              status: "REVOKED",
+              created-at: u0
+            }
+          )
+          
+          (ok true)
+        )
+      (err ERR-SERVICE-ACCESS-DENIED)
+    )
+  )
+)
