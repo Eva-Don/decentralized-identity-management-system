@@ -46,7 +46,6 @@
   }
 )
 
-
 ;; Create New Identity
 (define-public (create-identity 
   (did (buff 32))
@@ -71,6 +70,77 @@
       (ok true)
     )
     (err ERR-IDENTITY-EXISTS)  ;; Error if identity already exists
+  )
+)
+
+;; Signature verification function
+(define-private (is-valid-signature 
+  (signature (buff 64)) 
+  (did (buff 32))
+) 
+  ;; Placeholder signature validation
+  (is-eq signature did)
+)
+
+;; Update Identity Attributes
+(define-public (update-attributes
+  (new-attributes-hash (buff 32))
+  (signature (buff 64))
+)
+  (match (map-get? Identities tx-sender)
+    current-identity
+      (begin
+        ;; Verify signature and authorization
+        (if 
+          (and 
+            (is-eq (get is-active current-identity) true)
+            (is-valid-signature signature (get did current-identity))
+          )
+          ;; If verification passes, update attributes
+          (begin
+            (map-set Identities 
+              tx-sender 
+              (merge current-identity {
+                attributes-hash: new-attributes-hash,
+                updated-at: u0  ;; Use a placeholder for current timestamp
+              })
+            )
+            (ok true)
+          )
+          ;; If verification fails, return unauthorized error
+          (err ERR-UNAUTHORIZED)
+        )
+      )
+    ;; If no identity found, return invalid identity error
+    (err ERR-INVALID-IDENTITY)
+  )
+)
+
+;; Request Service Access
+(define-public (request-service-access
+  (service-did principal)
+  (requested-attributes (list 10 (string-ascii 50)))
+)
+  (match (map-get? Identities tx-sender)
+    current-identity
+      (begin
+        ;; Create verification request
+        (map-set VerificationRequests
+          {
+            requester: service-did,
+            identity: tx-sender
+          }
+          {
+            requested-attributes: requested-attributes,
+            status: "PENDING",
+            created-at: u0  ;; Use a placeholder timestamp
+          }
+        )
+        
+        (ok true)
+      )
+    ;; If no identity found, return invalid identity error
+    (err ERR-INVALID-IDENTITY)
   )
 )
 
