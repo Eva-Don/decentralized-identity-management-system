@@ -204,3 +204,146 @@
     )
   )
 )
+
+(define-public (revoke-service-access
+  (service-did principal)
+)
+  (let 
+    (
+      (access-entry 
+        (map-get? ServiceAccess 
+          {
+            identity: tx-sender,
+            service-did: service-did
+          }
+        )
+      )
+    )
+    (match access-entry
+      entry
+        (begin
+          ;; Remove service access
+          (map-delete ServiceAccess 
+            {
+              identity: tx-sender,
+              service-did: service-did
+            }
+          )
+          
+          ;; Update verification request status
+          (map-set VerificationRequests
+            {
+              requester: service-did,
+              identity: tx-sender
+            }
+            {
+              requested-attributes: (get allowed-attributes entry),
+              status: "REVOKED",
+              created-at: u0
+            }
+          )
+          
+          (ok true)
+        )
+      (err ERR-SERVICE-ACCESS-DENIED)
+    )
+  )
+)
+
+(define-map IdentityReputation
+  principal
+  {
+    trust-score: uint,
+    total-verifications: uint,
+    successful-verifications: uint
+  }
+)
+
+;; Update Reputation After Verification
+(define-private (update-reputation
+  (identity principal)
+  (is-successful bool)
+)
+  (match (map-get? IdentityReputation identity)
+    current-reputation
+      (let 
+        (
+          (new-total (+ (get total-verifications current-reputation) u1))
+          (new-successful 
+            (if is-successful 
+              (+ (get successful-verifications current-reputation) u1)
+              (get successful-verifications current-reputation)
+            )
+          )
+          (new-trust-score 
+            (/ 
+              (* (get successful-verifications current-reputation) u100) 
+              new-total
+            )
+          )
+        )
+        (map-set IdentityReputation 
+          identity 
+          {
+            trust-score: new-trust-score,
+            total-verifications: new-total,
+            successful-verifications: new-successful
+          }
+        )
+      )
+    ;; Initialize reputation if not exists
+    (map-set IdentityReputation 
+      identity 
+      {
+        trust-score: (if is-successful u100 u0),
+        total-verifications: u1,
+        successful-verifications: (if is-successful u1 u0)
+      }
+    )
+  )
+)
+
+(define-map RecoveryGuardians
+  principal
+  (list 3 principal)
+)
+
+(define-public (add-recovery-guardians
+  (guardians (list 3 principal))
+)
+  (begin
+    (map-set RecoveryGuardians 
+      tx-sender 
+      guardians
+    )
+    (ok true)
+  )
+)
+
+(define-public (verify-identity-for-contract
+  (contract-address principal)
+  (required-attributes (list 10 (string-ascii 50)))
+)
+  (match (map-get? Identities tx-sender)
+    identity
+      (let 
+        (
+          (has-service-access 
+            (is-some 
+              (map-get? ServiceAccess 
+                {
+                  identity: tx-sender,
+                  service-did: contract-address
+                }
+              )
+            )
+          )
+        )
+        (if has-service-access
+          (ok true)
+          (err ERR-SERVICE-ACCESS-DENIED)
+        )
+      )
+    (err ERR-INVALID-IDENTITY)
+  )
+)
