@@ -302,3 +302,48 @@
     )
   )
 )
+
+(define-map RecoveryGuardians
+  principal
+  (list 3 principal)
+)
+
+(define-public (add-recovery-guardians
+  (guardians (list 3 principal))
+)
+  (begin
+    (map-set RecoveryGuardians 
+      tx-sender 
+      guardians
+    )
+    (ok true)
+  )
+)
+
+(define-public (verify-identity-for-contract
+  (contract-address principal)
+  (required-attributes (list 10 (string-ascii 50)))
+)
+  (match (map-get? Identities tx-sender)
+    identity
+      (let 
+        (
+          (has-service-access 
+            (is-some 
+              (map-get? ServiceAccess 
+                {
+                  identity: tx-sender,
+                  service-did: contract-address
+                }
+              )
+            )
+          )
+        )
+        (if has-service-access
+          (ok true)
+          (err ERR-SERVICE-ACCESS-DENIED)
+        )
+      )
+    (err ERR-INVALID-IDENTITY)
+  )
+)
